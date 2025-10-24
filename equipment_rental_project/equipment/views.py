@@ -3,7 +3,7 @@ from rest_framework import generics, permissions
 from .models import Equipment
 from .serializers import EquipmentSerializer
 
-class EquipmentListView(generics.ListCreateAPIView):
+class EquipmentListCreateView(generics.ListCreateAPIView):
     queryset = Equipment.objects.all()
     serializer_class = EquipmentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
