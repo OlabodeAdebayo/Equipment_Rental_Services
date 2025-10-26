@@ -1,14 +1,21 @@
-from django.shortcuts import render
-from rest_framework import generics, permissions
+from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from rest_framework import status
 from .models import Equipment
 from .serializers import EquipmentSerializer
 
-class EquipmentListCreateView(generics.ListCreateAPIView):
-    queryset = Equipment.objects.all()
-    serializer_class = EquipmentSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+class IsAdminOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return request.user and request.user.is_staff
 
-class EquipmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Equipment.objects.all()
+class EquipmentViewSet(viewsets.ModelViewSet):
+    queryset = Equipment.objects.all().order_by('-id')
     serializer_class = EquipmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAdminOrReadOnly]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
