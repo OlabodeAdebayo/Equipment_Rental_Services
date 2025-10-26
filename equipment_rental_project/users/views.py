@@ -1,32 +1,34 @@
-from rest_framework import viewsets, permissions, filters
-from rest_framework.exceptions import ValidationError
+from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework import status
-from .models import Reservation
-from .serializers import ReservationSerializer
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import authenticate
+from django.contrib.auth import get_user_model
+from .serializers import UserRegisterSerializer
 
-class IsOwnerOrAdmin(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        return obj.user == request.user or request.user.is_staff
+User = get_user_model()
 
-class ReservationViewSet(viewsets.ModelViewSet):
-    serializer_class = ReservationSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
-    filter_backends = [filters.OrderingFilter]
-    ordering = ['-start_date']
-
-    def get_queryset(self):
-        if self.request.user.is_staff:
-            return Reservation.objects.all()
-        return Reservation.objects.filter(user=self.request.user)
+class UserRegisterView(generics.CreateAPIView):
+    serializer_class = UserRegisterSerializer
 
     def create(self, request, *args, **kwargs):
-        # ensure user is set to request.user and validate availability in serializer
-        data = request.data.copy()
-        data['user'] = request.user.pk
-        serializer = self.get_serializer(data=data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        user = serializer.save()
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'user': serializer.data,
+            'token': token.key
+        }, status=status.HTTP_201_CREATED)
 
+
+class UserLoginView(generics.GenericAPIView):
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        user = authenticate(username=username, password=password)
+        if not user:
+            return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({'token': token.key}, status=status.HTTP_200_OK)
